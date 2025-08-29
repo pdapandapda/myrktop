@@ -4,6 +4,7 @@ import subprocess
 import re
 import os
 import time
+import glob
 
 # -------------------------------
 # Basic System Info Functions
@@ -87,25 +88,65 @@ def get_cpu_info():
     return cpu_loads, cpu_freqs
 
 def get_gpu_info():
-    gpu_load_path = "/sys/class/devfreq/fb000000.gpu/load"
-    gpu_freq_path = "/sys/class/devfreq/fb000000.gpu/cur_freq"
-    if not os.path.exists(gpu_load_path) or not os.path.exists(gpu_freq_path):
+    gpu_dev = "fb000000.gpu"  # Assuming RK3588 GPU device name; adjust if needed
+    gpu_load_path = f"/sys/class/devfreq/{gpu_dev}/load"
+    gpu_freq_path = f"/sys/class/devfreq/{gpu_dev}/cur_freq"
+    if os.path.exists(gpu_load_path) and os.path.exists(gpu_freq_path):
+        # Vendor kernel path
+        try:
+            with open(gpu_load_path, "r") as f:
+                raw_line = f.read().strip()
+            fields = re.split(r'[@ ]+', raw_line)
+            load_str = fields[0].rstrip('%')
+            gpu_load = int(load_str)
+        except Exception:
+            gpu_load = 0
+        try:
+            with open(gpu_freq_path, "r") as f:
+                gpu_freq_str = f.read().strip()
+            gpu_freq = int(gpu_freq_str) // 1000000
+        except Exception:
+            gpu_freq = 0
+        return gpu_load, gpu_freq
+    elif os.path.exists(gpu_freq_path):
+        # Mainline kernel with Panthor (load doesn't exist, calculate via DRM stats)
+        global prev_gpu_busy, prev_gpu_time
+        # Get frequency from devfreq
+        try:
+            with open(gpu_freq_path, "r") as f:
+                gpu_freq_str = f.read().strip()
+            gpu_freq = int(gpu_freq_str) // 1000000
+        except Exception:
+            gpu_freq = 0
+        # Aggregate total busy time from all Panthor clients
+        current_busy = 0
+        for fdinfo_path in glob.glob("/proc/*/fdinfo/*"):
+            try:
+                with open(fdinfo_path, "r") as f:
+                    content = f.read()
+                if "drm-driver:\tpanthor\n" not in content:
+                    continue
+                m = re.search(r"drm-engine-panthor:\s*(\d+) ns", content)
+                if m:
+                    current_busy += int(m.group(1))
+            except:
+                pass
+        current_time = time.time()
+        if prev_gpu_time > 0:
+            delta_busy = current_busy - prev_gpu_busy
+            delta_time = current_time - prev_gpu_time
+            if delta_time > 0:
+                gpu_load = (delta_busy / (delta_time * 1e9)) * 100
+                gpu_load = min(100, max(0, int(gpu_load)))
+            else:
+                gpu_load = 0
+        else:
+            gpu_load = 0
+        prev_gpu_busy = current_busy
+        prev_gpu_time = current_time
+        return gpu_load, gpu_freq
+    else:
         return None, None
-    try:
-        with open(gpu_load_path, "r") as f:
-            raw_line = f.read().strip()
-        fields = re.split(r'[@ ]+', raw_line)
-        load_str = fields[0].rstrip('%')
-        gpu_load = int(load_str)
-    except Exception:
-        gpu_load = 0
-    try:
-        with open(gpu_freq_path, "r") as f:
-            gpu_freq_str = f.read().strip()
-        gpu_freq = int(gpu_freq_str) // 1000000
-    except Exception:
-        gpu_freq = 0
-    return gpu_load, gpu_freq
 
 def get_npu_info():
     npu_load_path = "/sys/kernel/debug/rknpu/load"
@@ -399,7 +440,7 @@ def get_drive_smart_info(dev):
     debug_data = {"cmd": used_cmd if used_cmd else "None", "all": {k: v[:300] + "..." if len(v) > 300 else v for k, v in all_outputs.items()}}
     if output is None or output.startswith("Error:"):
         debug_data["raw"] = output if output else "No output"
-        return ("unknown", {"model": "Unknown", "temp": "N/A", "power_hours": "N/A", 
+        return ("unknown", {"model": "Unknown", "temp": "N/A", "power_hours": "N/A",
                              "avail_spare": "N/A", "debug": debug_data})
     # For parsing we use the full output.
     debug_data["raw"] = output[:300] + "..." if len(output) > 300 else output
@@ -627,9 +668,11 @@ def unhandled_input(key):
         raise urwid.ExitMainLoop()
 
 def main():
-    global prev_cpu, prev_net
+    global prev_cpu, prev_net, prev_gpu_busy, prev_gpu_time
     prev_cpu = {}
     prev_net = {}
+    prev_gpu_busy = 0
+    prev_gpu_time = 0
     dashboard = DashboardWidget()
     loop = urwid.MainLoop(dashboard, palette, handle_mouse=True, unhandled_input=unhandled_input)
     loop.set_alarm_in(0.5, periodic_update, dashboard)
