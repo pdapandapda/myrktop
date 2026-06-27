@@ -88,7 +88,7 @@ def get_cpu_info():
     return cpu_loads, cpu_freqs
 
 def get_gpu_info():
-    gpu_dev = "fb000000.gpu"  # Assuming RK3588 GPU device name; adjust if needed
+    gpu_dev = " CIXH5000:00"  # Assuming RK3588 GPU device name; adjust if needed
     gpu_load_path = f"/sys/class/devfreq/{gpu_dev}/load"
     gpu_freq_path = f"/sys/class/devfreq/{gpu_dev}/cur_freq"
     if os.path.exists(gpu_load_path) and os.path.exists(gpu_freq_path):
