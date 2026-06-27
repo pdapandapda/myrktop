@@ -79,7 +79,7 @@ def get_cpu_info():
     return cpu_loads, cpu_freqs
 
 def get_gpu_info():
-    gpu_dev = "fb000000.gpu"
+    gpu_dev = "CIXH5000:00"
     gpu_freq_path = f"/sys/class/devfreq/{gpu_dev}/cur_freq"
     gpu_load_path = f"/sys/class/devfreq/{gpu_dev}/load"
 
