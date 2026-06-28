@@ -1,4 +1,4 @@
-# 🖥️ myrktop - Orange Pi 6 (RK3588) System Monitor COLORED BRANCH
+# 🖥️ myrktop - Orange Pi 6 (Cix-P1) System Monitor COLORED BRANCH
 
 🔥 **myrktop** is a lightweight system monitor for **Orange Pi 5 (RK3588)**, providing real-time information about **CPU, GPU, NPU, RAM, RGA, and system temperatures**.
 
