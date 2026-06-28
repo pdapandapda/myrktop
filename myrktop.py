@@ -140,30 +140,85 @@ def get_ram_swap_info():
     except: return "N/A", "N/A", "N/A", "N/A"
 
 def get_temperatures():
+    # 针对 Orange Pi 6 (CIX-P1) 全面定制的映射字典
+    sensor_map = {
+        "TZGT": "GPU",
+        "TZB0": "CPU (Big Cluster 0)",
+        "TZB1": "CPU (Big Cluster 1)",
+        "TZM0": "CPU (Mid Cluster 0)",
+        "TZM1": "CPU (Mid Cluster 1)",
+        "nvme": "NVMe SSD",
+        "r8169_0_3100:00": "LAN Port 1 (RTL8169)",
+        "r8169_0_6100:00": "LAN Port 2 (RTL8169)",
+    }
+
+    # 🌟 新增：强制排序权重字典（数字越小越靠前）
+    sort_priority = {
+        "GPU": 1,
+        "CPU (Big Cluster 0)": 2,
+        "CPU (Big Cluster 1)": 3,
+        "CPU (Mid Cluster 0)": 4,
+        "CPU (Mid Cluster 1)": 5,
+        "NVMe SSD": 6,
+        "LAN Port 1 (RTL8169)": 7,
+        "LAN Port 2 (RTL8169)": 8,
+    }
+
     try:
         output = subprocess.check_output("sensors", shell=True, stderr=subprocess.DEVNULL).decode("utf-8")
         lines = output.splitlines()
-        temp_items = []
+
+        # 改用字典列表来临时存储，方便后续排序
+        parsed_items = []
         current_name = None
+
         for line in lines:
-            if not line.strip(): continue
-            if ":" not in line and len(line.split()) == 1:
-                current_name = line.strip()
+            if not line.strip():
+                current_name = None
                 continue
+
+            # 识别标题行
+            if len(line.split()) == 1:
+                raw_name = line.strip()
+                clean_name = raw_name.split('-')[0]
+                current_name = sensor_map.get(clean_name, raw_name)
+                continue
+
+            # 提取温度
             if "temp1" in line or "Composite" in line or "Package id 0" in line:
                 fields = line.split()
                 if len(fields) < 2: continue
                 m = re.search(r'\+([\d\.]+)', fields[1])
                 if m:
                     temp_val = int(float(m.group(1)))
+
                     if temp_val >= 70: attr = 'temp_red'
                     elif temp_val >= 60: attr = 'temp_yellow'
                     else: attr = 'temp_green'
+
                     sensor_name = current_name if current_name else fields[0]
                     formatted = f"{sensor_name:<30} {temp_val:2d}°C"
-                    temp_items.append((attr, formatted))
-        return temp_items if temp_items else [("default", "No sensors found")]
-    except: return [("default", "N/A")]
+
+                    # 临时把名称、颜色、格式化文本打包存起来
+                    parsed_items.append({
+                        "name": sensor_name,
+                        "attr": attr,
+                        "formatted": formatted
+                    })
+
+        if not parsed_items:
+            return [("default", "No sensors found")]
+
+        # 🌟 核心逻辑：根据 sort_priority 的定义进行排序。
+        # 如果遇到未知的传感器（不在列表里），默认给 99 的权重，让它们沉到最底下。
+        # 当权重相同时，按照名称的首字母排序。
+        parsed_items.sort(key=lambda x: (sort_priority.get(x["name"], 99), x["name"]))
+
+        # 剥离出最终面板需要的元组格式 (attr, formatted_string)
+        return [(item["attr"], item["formatted"]) for item in parsed_items]
+
+    except:
+        return [("default", "N/A")]
 
 def get_disk_usage():
     try:
@@ -235,7 +290,7 @@ def build_dashboard():
     bar = "━" * 60
     lines.append(("header", bar))
     dev, npu_v, uptime, docker = get_device_info()
-    lines.append(("title", f" 🚀 PDA OrangePi5 Ultra Monitor"))
+    lines.append(("title", f" 🚀 PDA OrangePi6 Plus Monitor"))
     lines.append(("default", f" 🕒 Uptime: {uptime}   🐳 Docker: {docker}"))
     lines.append(("header", bar))
 
