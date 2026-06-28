@@ -1,4 +1,4 @@
-# 🖥️ myrktop - Orange Pi 5 (RK3588) System Monitor COLORED BRANCH
+# 🖥️ myrktop - Orange Pi 6 (RK3588) System Monitor COLORED BRANCH
 
 🔥 **myrktop** is a lightweight system monitor for **Orange Pi 5 (RK3588)**, providing real-time information about **CPU, GPU, NPU, RAM, RGA, and system temperatures**.
 
@@ -12,8 +12,8 @@ sudo apt update && sudo apt install -y python3 python3-pip lm-sensors smartmonto
 ### **2️⃣ Download and Install myrktop**
 Run the following command to download and install the script:
 ```bash
-wget -O ~/myrktop.py https://raw.githubusercontent.com/mhl221135/myrktop/refs/heads/main/myrktop.py
-wget -O /usr/local/bin/myrktop https://raw.githubusercontent.com/mhl221135/myrktop/refs/heads/main/myrktop
+wget -O ~/.local/share/myrktop.py https://raw.githubusercontent.com/pdapandapda/myrktop/refs/heads/cix-p1/myrktop.py
+wget -O /usr/local/bin/myrktop https://raw.githubusercontent.com/pdapandapda/myrktop/refs/heads/cix-p1/myrktop
 ```
 Then, make the script executable:
 ```bash
